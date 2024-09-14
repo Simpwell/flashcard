@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>フラッシュカードアプリ</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background-color: #f0f0f0;
+        }
+        #app {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            position: relative;
+        }
+        h1 {
+            text-align: center;
+            margin: 0 0 20px 0;
+        }
+        #flashcard-container {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            perspective: 1000px;
+        }
+        #flashcard {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            transition: transform 0.6s;
+            transform-style: preserve-3d;
+        }
+        #flashcard.flipped {
+            transform: rotateY(180deg);
+        }
+        .card-face {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            padding: 20px;
+            box-sizing: border-box;
+            transition: opacity 0.3s;
+        }
+        .card-back {
+            transform: rotateY(180deg);
+        }
+        .highlight {
+            color: red;
+            font-weight: bold;
+        }
+        #file-input {
+            margin-bottom: 20px;
+        }
+        .button-container {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+        #flip-button {
+            background-color: #2196F3;
+        }
+        #learned-button {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background-color: #FF9800;
+        }
+        #reset-button {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background-color: #f44336;
+        }
+        #progress {
+            text-align: center;
+            margin-top: 10px;
+            font-size: 14px;
+            color: #666;
+        }
+        #error-message {
+            color: red;
+            text-align: center;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <h1>フラッシュカードアプリ</h1>
+        <button id="learned-button">覚えた</button>
+        <button id="reset-button">リセット</button>
+        <input type="file" id="file-input" accept=".csv">
+        <div id="flashcard-container">
+            <div id="flashcard">
+                <div class="card-face card-front">カードをロードしてください</div>
+                <div class="card-face card-back"></div>
+            </div>
+        </div>
+        <div class="button-container">
+            <button id="prev-button">前へ</button>
+            <button id="flip-button">裏返す</button>
+            <button id="next-button">次へ</button>
+        </div>
+        <div id="progress"></div>
+        <div id="error-message"></div>
+    </div>
+
+    <script>
+        let cards = [];
+        let currentCard = 0;
+        let showingQuestion = true;
+        let learnedCards = new Set();
+
+        const fileInput = document.getElementById('file-input');
+        const flashcard = document.getElementById('flashcard');
+        const cardFront = document.querySelector('.card-front');
+        const cardBack = document.querySelector('.card-back');
+        const prevButton = document.getElementById('prev-button');
+        const flipButton = document.getElementById('flip-button');
+        const nextButton = document.getElementById('next-button');
+        const learnedButton = document.getElementById('learned-button');
+        const resetButton = document.getElementById('reset-button');
+        const progressDiv = document.getElementById('progress');
+        const errorMessageDiv = document.getElementById('error-message');
+
+        fileInput.addEventListener('change', loadCards);
+        prevButton.addEventListener('click', () => changeCard('prev'));
+        flipButton.addEventListener('click', flipCard);
+        nextButton.addEventListener('click', () => changeCard('next'));
+        learnedButton.addEventListener('click', markAsLearned);
+        resetButton.addEventListener('click', resetLearned);
+
+        function loadCards(e) {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const csv = e.target.result;
+                    cards = csv.split('\n').map(line => {
+                        line = line.trim();
+                        if (line === '') return null; // 空行をスキップ
+                        
+                        // カンマで分割
+                        let [question, answer] = line.split(',').map(s => s.trim());
+                        
+                        if (!answer) {
+                            // カンマがない場合はエラー
+                            throw new Error('カンマで区切られていない行があります: ' + line);
+                        }
+                        
+                        // 問題の最後と解答の先頭の引用符を削除
+                        question = question.replace(/^"|"$/g, '');
+                        answer = answer.replace(/^"|"$/g, '');
+                        
+                        return { question, answer };
+                    }).filter(card => card !== null);
+
+                    if (cards.length === 0) {
+                        throw new Error('有効なカードデータがありません。');
+                    }
+
+                    currentCard = 0;
+                    learnedCards.clear();
+                    showCard();
+                    updateProgress();
+                    errorMessageDiv.textContent = ''; // エラーメッセージをクリア
+                } catch (error) {
+                    console.error('Error parsing CSV:', error);
+                    errorMessageDiv.textContent = 'ファイルの読み込み中にエラーが発生しました: ' + error.message;
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function showCard() {
+            if (cards.length > 0) {
+                cardFront.innerHTML = highlightBrackets(cards[currentCard].question);
+                cardBack.innerHTML = highlightBrackets(cards[currentCard].answer);
+                showingQuestion = true;
+                flashcard.classList.remove('flipped');
+                adjustFontSize();
+            } else {
+                cardFront.textContent = 'カードをロードしてください';
+                cardBack.textContent = '';
+            }
+        }
+
+        function highlightBrackets(text) {
+            return text.replace(/\[([^\]]+)\]/g, '<span class="highlight">$1</span>');
+        }
+
+        function flipCard() {
+            flashcard.classList.toggle('flipped');
+            showingQuestion = !showingQuestion;
+        }
+
+        function changeCard(direction) {
+            if (cards.length > 0) {
+                let newIndex;
+                if (direction === 'next') {
+                    newIndex = (currentCard + 1) % cards.length;
+                    while (learnedCards.has(newIndex) && learnedCards.size < cards.length) {
+                        newIndex = (newIndex + 1) % cards.length;
+                    }
+                } else {
+                    newIndex = (currentCard - 1 + cards.length) % cards.length;
+                    while (learnedCards.has(newIndex) && learnedCards.size < cards.length) {
+                        newIndex = (newIndex - 1 + cards.length) % cards.length;
+                    }
+                }
+
+                if (learnedCards.size < cards.length) {
+                    // カードの内容を更新する前にフェードアウト
+                    cardFront.style.opacity = 0;
+                    cardBack.style.opacity = 0;
+
+                    setTimeout(() => {
+                        currentCard = newIndex;
+                        showCard();
+                        // カードの内容を更新した後にフェードイン
+                        setTimeout(() => {
+                            cardFront.style.opacity = 1;
+                            cardBack.style.opacity = 1;
+                        }, 50);
+                    }, 300); // フェードアウトの時間と同じにする
+                } else {
+                    cardFront.textContent = 'すべてのカードを学習しました！';
+                    cardBack.textContent = '';
+                    adjustFontSize();
+                }
+            }
+        }
+
+        function markAsLearned() {
+            if (cards.length > 0) {
+                learnedCards.add(currentCard);
+                changeCard('next');
+                updateProgress();
+            }
+        }
+
+        function resetLearned() {
+            learnedCards.clear();
+            currentCard = 0;
+            showCard();
+            updateProgress();
+        }
+
+        function updateProgress() {
+            const totalCards = cards.length;
+            const learnedCardsCount = learnedCards.size;
+            const remainingCards = totalCards - learnedCardsCount;
+            progressDiv.textContent = `残りのカード: ${remainingCards} / ${totalCards}`;
+        }
+
+        function adjustFontSize() {
+            const cardFaces = [cardFront, cardBack];
+            cardFaces.forEach(face => {
+                const containerWidth = face.clientWidth;
+                const containerHeight = face.clientHeight;
+                const contentLength = face.textContent.length;
+
+                let fontSize = Math.min(containerWidth, containerHeight) * 0.2;
+                if (contentLength > 1) {
+                    fontSize = fontSize / Math.sqrt(contentLength);
+                }
+                fontSize = Math.max(fontSize, 16);
+
+                face.style.fontSize = `${fontSize}px`;
+            });
+        }
+
+        window.addEventListener('resize', adjustFontSize);
+        adjustFontSize();
+    </script>
+</body>
+</html>
+
