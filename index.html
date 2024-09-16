@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>フラッシュカードアプリ</title>
+    <title></title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -64,8 +64,10 @@
             color: red;
             font-weight: bold;
         }
-        #file-input {
+        #dataset-select {
             margin-bottom: 20px;
+            padding: 10px;
+            font-size: 16px;
         }
         .button-container {
             display: flex;
@@ -102,19 +104,19 @@
             font-size: 14px;
             color: #666;
         }
-        #error-message {
-            color: red;
-            text-align: center;
-            margin-top: 10px;
-        }
     </style>
 </head>
 <body>
     <div id="app">
         <h1>フラッシュカードアプリ</h1>
+        <select id="dataset-select">
+            <option value="">データセットを選択してください</option>
+            <option value="1">①字のないハガキ</option>
+            <option value="2">②同じ訓、同じ音を持つ言葉</option>
+            <option value="3">③モアイは語る</option>
+        </select>
         <button id="learned-button">覚えた</button>
         <button id="reset-button">リセット</button>
-        <input type="file" id="file-input" accept=".csv">
         <div id="flashcard-container">
             <div id="flashcard">
                 <div class="card-face card-front">カードをロードしてください</div>
@@ -127,16 +129,99 @@
             <button id="next-button">次へ</button>
         </div>
         <div id="progress"></div>
-        <div id="error-message"></div>
     </div>
 
     <script>
+        const datasets = {
+            1: [
+                { question: "教育委員会[どの]", answer: "教育委員会[殿]" },
+                { question: "[きゅうでん]のような建物", answer: "[宮殿]のような建物" },
+                { question: "時候の[あいさつ]", answer: "時候の[挨拶]" },
+                { question: "あの人はなかなか[こんじょう]がある", answer: "あの人はなかなか[根性]がある" },
+                { question: "伝統的な[ぎしき]", answer: "伝統的な[儀式]" },
+                { question: "[はだ]が荒れる", answer: "[肌]が荒れる" },
+                { question: "ぞうきんを[ぬう]", answer: "ぞうきんを[縫う]" },
+                { question: "母が家で[さいほう]をする", answer: "母が家で[裁縫]をする" },
+                { question: "[もめん]のシャツを着る", answer: "[木綿]のシャツを着る" },
+                { question: "家の[すいじ]を担当する", answer: "家の[炊事]を担当する" },
+                { question: "赤飯を[たく]", answer: "赤飯を[炊く]" },
+                { question: "正月に[もち]を食べる", answer: "正月に[餅]を食べる" },
+                { question: "のりを巻いた煎[べい]", answer: "のりを巻いた煎[餅]" },
+                { question: "弱音を[はく]", answer: "弱音を[吐く]" },
+                { question: "[といき]が聞こえる", answer: "[吐息]が聞こえる" },
+                { question: "遅刻して[しかられる]", answer: "遅刻して[叱られる]" },
+                { question: "部下を[しっせき]する", answer: "部下を[叱責]する" },
+                { question: "大声で[さけぶ]", answer: "大声で[叫ぶ]" },
+                { question: "恐怖に[ぜっきょう]する", answer: "恐怖に[絶叫]する" }
+            ],
+            2: [
+                { question: "医師の[しんだん]", answer: "医師の[診断]" },
+                { question: "医者がかんじゃを[み]る", answer: "医者がかんじゃを[診]る" },
+                { question: "陳述書を提出する", answer: "[陳述書]を提出する" },
+                { question: "[らくのう]に従事する", answer: "[酪農]に従事する" },
+                { question: "[かんがい]にふける", answer: "[感慨]にふける" },
+                { question: "[しんし]服を購入する", answer: "[紳士]服を購入する" },
+                { question: "[ふくし]活動を行う", answer: "[福祉]活動を行う" },
+                { question: "政治[りんり]を語る", answer: "政治[倫理]を語る" },
+                { question: "問題の解決を[はかる]", answer: "問題の解決を[図る]" },
+                { question: "この問題を委員会に[はかる]", answer: "この問題を委員会に[諮る]" },
+                { question: "政府の[しもん]機関", answer: "政府の[諮問]機関" },
+                { question: "戦いの指揮を[とる]", answer: "戦いの指揮を[執る]" },
+                { question: "文学作品を[しっぴつ]する", answer: "文学作品を[執筆]する" },
+                { question: "お金に[しゅうちゃく]する", answer: "お金に[執着]する" },
+                { question: "お寺の[かね]が鳴る", answer: "お寺の[鐘]が鳴る" },
+                { question: "自然破壊に[けいしょう]を鳴らす", answer: "自然破壊に[警鐘]を鳴らす" },
+                { question: "[いがた]を使って鍋をつくる", answer: "[鋳型]を使って鍋をつくる" },
+                { question: "金貨を[ちゅうぞう]する", answer: "金貨を[鋳造]する" },
+                { question: "道路が[しんすい]した", answer: "道路が[浸水]した" },
+                { question: "水にタオルを[ひたす]", answer: "水にタオルを[浸す]" },
+                { question: "りんごの[かじゅう]", answer: "りんごの[果汁]" },
+                { question: "[しるこ]を食べる", answer: "[汁粉]を食べる" },
+                { question: "[くじゅう]に満ちた顔", answer: "[苦渋]に満ちた顔" },
+                { question: "[しぶ]い色を好む", answer: "[渋]い色を好む" },
+                { question: "深く[かんしょう]しない", answer: "深く[干渉]しない" },
+                { question: "力の[きんこう]を保つ", answer: "力の[均衡]を保つ" },
+                { question: "終戦により平和を[きょうじゅ]する", answer: "終戦により平和を[享受]する" },
+                { question: "放物線の[きどう]を描く", answer: "放物線の[軌道]を描く" }
+            ],
+            3: [
+                { question: "[きょだい]なピラミッド", answer: "[巨大]なピラミッド" },
+                { question: "[こどく]な生活", answer: "[孤独]な生活" },
+                { question: "気体が熱で[ぼうちょう]する", answer: "気体が熱で[膨張]する" },
+                { question: "桜のつぼみが[ふくらむ]", answer: "桜のつぼみが[膨らむ]" },
+                { question: "事件の[なぞ]を解く", answer: "事件の[謎]を解く" },
+                { question: "植物を[さいばい]する", answer: "植物を[栽培]する" },
+                { question: "一点を[ぎょうし]する", answer: "一点を[凝視]する" },
+                { question: "料理に[こる]", answer: "料理に[凝る]" },
+                { question: "[せっかい]からセメントを作る", answer: "石灰からセメントを作る" },
+                { question: "多数意見に[ていこう]する", answer: "多数意見に[抵抗]する" },
+                { question: "物資を[うんぱん]する", answer: "物資を[運搬]する" },
+                { question: "土や砂が[たいせき]する", answer: "土や砂が[堆積]する" },
+                { question: "トラックが[じょこう]する", answer: "トラックが[徐行]する" },
+                { question: "落ちている枝を[まき]する", answer: "落ちている枝を[薪]にする" },
+                { question: "[しんすい]の労をとる", answer: "[薪水]の労をとる" },
+                { question: "ケガで試合を[きけん]した", answer: "ケガで試合を[棄権]した" },
+                { question: "虫が[しんにゅう]する", answer: "虫が[侵入]する" },
+                { question: "プライバシーを[おか]す", answer: "プライバシーを[侵]す" },
+                { question: "ひどい扱いに[こうぎ]する", answer: "ひどい扱いに[抗議]する" },
+                { question: "論文に[ひんしゅつ]する言葉", answer: "論文に[頻出]する言葉" },
+                { question: "建物の天井が[ほうらく]する", answer: "建物の天井が[崩落]する" },
+                { question: "姿勢を[くずす]", answer: "姿勢を[崩す]" },
+                { question: "水温を[こうじょう]に保つ", answer: "水温を[恒常]に保つ" },
+                { question: "[きが]に苦しむ", answer: "[飢餓]に苦しむ" },
+                { question: "水を飲んで[うえ]をしのぐ", answer: "水を飲んで[飢え]をしのぐ" },
+                { question: "停電で[しっこく]の闇だ", answer: "停電で[漆黒]の闇だ" },
+                { question: "[うるし]塗りの容器に入れる", answer: "[漆]塗りの容器に入れる" },
+                { question: "天国と[じごく]", answer: "天国と[地獄]" }
+            ]
+        };
+
         let cards = [];
         let currentCard = 0;
         let showingQuestion = true;
         let learnedCards = new Set();
 
-        const fileInput = document.getElementById('file-input');
+        const datasetSelect = document.getElementById('dataset-select');
         const flashcard = document.getElementById('flashcard');
         const cardFront = document.querySelector('.card-front');
         const cardBack = document.querySelector('.card-back');
@@ -146,55 +231,28 @@
         const learnedButton = document.getElementById('learned-button');
         const resetButton = document.getElementById('reset-button');
         const progressDiv = document.getElementById('progress');
-        const errorMessageDiv = document.getElementById('error-message');
 
-        fileInput.addEventListener('change', loadCards);
+        datasetSelect.addEventListener('change', loadCards);
         prevButton.addEventListener('click', () => changeCard('prev'));
         flipButton.addEventListener('click', flipCard);
         nextButton.addEventListener('click', () => changeCard('next'));
         learnedButton.addEventListener('click', markAsLearned);
         resetButton.addEventListener('click', resetLearned);
 
-        function loadCards(e) {
-            const file = e.target.files[0];
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                try {
-                    const csv = e.target.result;
-                    cards = csv.split('\n').map(line => {
-                        line = line.trim();
-                        if (line === '') return null; // 空行をスキップ
-                        
-                        // カンマで分割
-                        let [question, answer] = line.split(',').map(s => s.trim());
-                        
-                        if (!answer) {
-                            // カンマがない場合はエラー
-                            throw new Error('カンマで区切られていない行があります: ' + line);
-                        }
-                        
-                        // 問題の最後と解答の先頭の引用符を削除
-                        question = question.replace(/^"|"$/g, '');
-                        answer = answer.replace(/^"|"$/g, '');
-                        
-                        return { question, answer };
-                    }).filter(card => card !== null);
-
-                    if (cards.length === 0) {
-                        throw new Error('有効なカードデータがありません。');
-                    }
-
-                    currentCard = 0;
-                    learnedCards.clear();
-                    showCard();
-                    updateProgress();
-                    errorMessageDiv.textContent = ''; // エラーメッセージをクリア
-                } catch (error) {
-                    console.error('Error parsing CSV:', error);
-                    errorMessageDiv.textContent = 'ファイルの読み込み中にエラーが発生しました: ' + error.message;
-                }
-            };
-            reader.readAsText(file);
+        function loadCards() {
+            const datasetId = datasetSelect.value;
+            if (datasetId) {
+                cards = datasets[datasetId];
+                currentCard = 0;
+                learnedCards.clear();
+                showCard();
+                updateProgress();
+            } else {
+                cards = [];
+                cardFront.textContent = 'データセットを選択してください';
+                cardBack.textContent = '';
+                progressDiv.textContent = '';
+            }
         }
 
         function showCard() {
@@ -205,7 +263,7 @@
                 flashcard.classList.remove('flipped');
                 adjustFontSize();
             } else {
-                cardFront.textContent = 'カードをロードしてください';
+                cardFront.textContent = 'データセットを選択してください';
                 cardBack.textContent = '';
             }
         }
@@ -235,19 +293,17 @@
                 }
 
                 if (learnedCards.size < cards.length) {
-                    // カードの内容を更新する前にフェードアウト
                     cardFront.style.opacity = 0;
                     cardBack.style.opacity = 0;
 
                     setTimeout(() => {
                         currentCard = newIndex;
                         showCard();
-                        // カードの内容を更新した後にフェードイン
                         setTimeout(() => {
                             cardFront.style.opacity = 1;
                             cardBack.style.opacity = 1;
                         }, 50);
-                    }, 300); // フェードアウトの時間と同じにする
+                    }, 300);
                 } else {
                     cardFront.textContent = 'すべてのカードを学習しました！';
                     cardBack.textContent = '';
@@ -299,5 +355,4 @@
         adjustFontSize();
     </script>
 </body>
-</html>
-
+</html>        
